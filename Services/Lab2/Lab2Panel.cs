@@ -20,8 +20,11 @@ namespace lab1forms.Services.Lab2
         private TextBox      txtLog;
         private NumericUpDown nudSize;
         private NumericUpDown nudFreq;
+        private NumericUpDown nudDisplayLimit; // требование п.5 — "первые N элементов"
         private Label        lblTimeNoThread;
         private Label        lblTimeThread;
+        private Label        lblDisplayInfoD;
+        private Label        lblDisplayInfoA;
 
         public Lab2Panel()
         {
@@ -31,22 +34,26 @@ namespace lab1forms.Services.Lab2
 
         private void BuildUI()
         {
-            // ── панель заполнения ────────────────────────────────────────────
             var grpFill = new GroupBox
             {
                 Text    = "Шаг 1 — Заполнение массива D",
                 Dock    = DockStyle.Top,
-                Height  = 105,
+                Height  = 132,
                 Padding = new Padding(10, 4, 10, 4)
             };
 
             var lblSize = new Label { Text = "Размер n:", Left = 8,   Top = 28, AutoSize = true };
             nudSize = new NumericUpDown { Left = 80, Top = 24, Width = 65,
-                                          Minimum = 2, Maximum = 200, Value = 10 };
+                                          Minimum = 2, Maximum = 100000, Value = 10 };
 
             var lblFreq = new Label { Text = "Частота k:", Left = 162, Top = 28, AutoSize = true };
             nudFreq = new NumericUpDown { Left = 240, Top = 24, Width = 60,
                                           Minimum = 1, Maximum = 50, Value = 5 };
+
+            var lblLimit = new Label { Text = "Показывать первых N элементов:", Left = 310, Top = 28, AutoSize = true };
+            nudDisplayLimit = new NumericUpDown { Left = 555, Top = 24, Width = 80,
+                                          Minimum = 1, Maximum = 100000, Value = 50 };
+            nudDisplayLimit.ValueChanged += (s, e) => RefreshGridDisplays();
 
             var btnRandom     = MakeBtn("Случайно",          8,   60, 128);
             var btnFreqFill   = MakeBtn("По частоте k",      144, 60, 128);
@@ -56,16 +63,18 @@ namespace lab1forms.Services.Lab2
             btnFreqFill.Click   += BtnFreqFill_Click;
             btnReadManual.Click += BtnReadManual_Click;
 
-            grpFill.Controls.AddRange(new Control[]
-                { lblSize, nudSize, lblFreq, nudFreq,
-                  btnRandom, btnFreqFill, btnReadManual });
+            lblDisplayInfoD = new Label { Left = 8, Top = 98, AutoSize = true, ForeColor = Color.DimGray,
+                                          Text = "Массив D не сформирован." };
 
-            // ── панель обработки ─────────────────────────────────────────────
+            grpFill.Controls.AddRange(new Control[]
+                { lblSize, nudSize, lblFreq, nudFreq, lblLimit, nudDisplayLimit,
+                  btnRandom, btnFreqFill, btnReadManual, lblDisplayInfoD });
+
             var grpProcess = new GroupBox
             {
                 Text    = "Шаг 2 — Обработка",
                 Dock    = DockStyle.Bottom,
-                Height  = 82,
+                Height  = 100,
                 Padding = new Padding(10, 4, 10, 4)
             };
 
@@ -76,14 +85,15 @@ namespace lab1forms.Services.Lab2
                 Left = 8,   Top = 58, AutoSize = true, ForeColor = Color.DarkBlue };
             lblTimeThread = new Label { Text = "С потоками:  —",
                 Left = 320, Top = 58, AutoSize = true, ForeColor = Color.DarkGreen };
+            lblDisplayInfoA = new Label { Left = 8, Top = 78, AutoSize = true, ForeColor = Color.DimGray,
+                                          Text = "Массив A не сформирован." };
 
             btnNoThread.Click += BtnNoThread_Click;
             btnThread.Click   += BtnThread_Click;
 
             grpProcess.Controls.AddRange(new Control[]
-                { btnNoThread, btnThread, lblTimeNoThread, lblTimeThread });
+                { btnNoThread, btnThread, lblTimeNoThread, lblTimeThread, lblDisplayInfoA });
 
-            // ── журнал исключений ────────────────────────────────────────────
             var grpLog = new GroupBox
             {
                 Text    = string.Format("Журнал исключений  (файл: {0})", LOG_PATH),
@@ -109,7 +119,6 @@ namespace lab1forms.Services.Lab2
             grpLog.Controls.Add(txtLog);
             grpLog.Controls.Add(btnClear);
 
-            // ── два DataGridView рядом ───────────────────────────────────────
             dgvD = MakeGrid("D[i]", editable: true);
             dgvA = MakeGrid("A[i]", editable: false);
 
@@ -136,7 +145,6 @@ namespace lab1forms.Services.Lab2
             Controls.Add(grpLog);
         }
 
-        // ─────────────────────── фабрики ─────────────────────────────────────
         private static Button MakeBtn(string text, int x, int y, int w, Color? bg = null)
         {
             var btn = new Button
@@ -186,35 +194,37 @@ namespace lab1forms.Services.Lab2
             };
         }
 
-        // ═══════════════════════ обработчики кнопок ══════════════════════════
-
         private void BtnRandom_Click(object sender, EventArgs e)
         {
             try
             {
+                AppStatus.Report("Лаб.2: случайное заполнение массива D", -1);
                 int n = (int)nudSize.Value;
                 var rnd = new Random();
                 _D = new double[n];
                 for (int i = 0; i < n; i++)
                     _D[i] = rnd.Next(-50, 51);
-                FillGrid(dgvD, _D);
+                FillGridLimited(dgvD, _D, lblDisplayInfoD, "D");
             }
             catch (Exception ex) { LogException(ex); }
+            finally { AppStatus.Idle(); }
         }
 
         private void BtnFreqFill_Click(object sender, EventArgs e)
         {
             try
             {
+                AppStatus.Report("Лаб.2: заполнение массива D по частоте", -1);
                 int n    = (int)nudSize.Value;
                 int freq = (int)nudFreq.Value;
                 var rnd  = new Random();
                 _D = new double[n];
                 for (int i = 0; i < n; i++)
                     _D[i] = rnd.Next(-50 / freq, 51 / freq) * (double)freq;
-                FillGrid(dgvD, _D);
+                FillGridLimited(dgvD, _D, lblDisplayInfoD, "D");
             }
             catch (Exception ex) { LogException(ex); }
+            finally { AppStatus.Idle(); }
         }
 
         private void BtnReadManual_Click(object sender, EventArgs e)
@@ -222,6 +232,7 @@ namespace lab1forms.Services.Lab2
             try
             {
                 _D = ReadGrid(dgvD);
+                lblDisplayInfoD.Text = string.Format("Массив D принят вручную: {0} элементов.", _D.Length);
                 MessageBox.Show(string.Format("Принято {0} элементов.", _D.Length), "Готово",
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
@@ -233,15 +244,17 @@ namespace lab1forms.Services.Lab2
             try
             {
                 RequireD();
+                AppStatus.Report("Лаб.2: обработка массива (без потоков)", -1);
                 var sw = Stopwatch.StartNew();
                 _A = Lab2Service.ProcessSequential(_D);
                 sw.Stop();
                 lblTimeNoThread.Text = string.Format(
                     "Без потоков: {0} тик.  /  {1:F4} мс",
                     sw.ElapsedTicks, sw.Elapsed.TotalMilliseconds);
-                FillGrid(dgvA, _A);
+                FillGridLimited(dgvA, _A, lblDisplayInfoA, "A");
             }
             catch (Exception ex) { LogException(ex); }
+            finally { AppStatus.Idle(); }
         }
 
         private void BtnThread_Click(object sender, EventArgs e)
@@ -249,18 +262,18 @@ namespace lab1forms.Services.Lab2
             try
             {
                 RequireD();
+                AppStatus.Report("Лаб.2: обработка массива (с потоками)", -1);
                 var sw = Stopwatch.StartNew();
                 _A = Lab2Service.ProcessThreaded(_D);
                 sw.Stop();
                 lblTimeThread.Text = string.Format(
                     "С потоками:  {0} тик.  /  {1:F4} мс",
                     sw.ElapsedTicks, sw.Elapsed.TotalMilliseconds);
-                FillGrid(dgvA, _A);
+                FillGridLimited(dgvA, _A, lblDisplayInfoA, "A");
             }
             catch (Exception ex) { LogException(ex); }
+            finally { AppStatus.Idle(); }
         }
-
-        // ═══════════════════════ вспомогательные ═════════════════════════════
 
         private void RequireD()
         {
@@ -269,14 +282,27 @@ namespace lab1forms.Services.Lab2
                     "Массив D не задан. Сначала заполните его одним из трёх способов.");
         }
 
-        private static void FillGrid(DataGridView dgv, double[] arr)
+        private void RefreshGridDisplays()
         {
+            if (_D != null) FillGridLimited(dgvD, _D, lblDisplayInfoD, "D");
+            if (_A != null) FillGridLimited(dgvA, _A, lblDisplayInfoA, "A");
+        }
+
+        private void FillGridLimited(DataGridView dgv, double[] arr, Label infoLabel, string arrayName)
+        {
+            int limit = (int)nudDisplayLimit.Value;
+            int shown = Math.Min(arr.Length, limit);
+
             dgv.Rows.Clear();
-            for (int i = 0; i < arr.Length; i++)
+            for (int i = 0; i < shown; i++)
             {
                 dgv.Rows.Add(arr[i].ToString("F4", CultureInfo.InvariantCulture));
                 dgv.Rows[i].HeaderCell.Value = (i + 1).ToString();
             }
+
+            infoLabel.Text = arr.Length > limit
+                ? string.Format("Массив {0}: показано первых {1} из {2} элементов (измените N выше, чтобы показать больше).", arrayName, shown, arr.Length)
+                : string.Format("Массив {0}: показаны все {1} элементов.", arrayName, arr.Length);
         }
 
         private static double[] ReadGrid(DataGridView dgv)
@@ -314,6 +340,8 @@ namespace lab1forms.Services.Lab2
 
             try { File.AppendAllText(LOG_PATH, entry); }
             catch { }
+
+            ExceptionLogger.LogException(ex);
         }
     }
 }
